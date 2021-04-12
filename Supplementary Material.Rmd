@@ -1,0 +1,191 @@
+---
+title: "Technological acceptance of Moodle from the perspective of higher education faculty in Ecuador: a nationwide study based on the UTAUT2 model"
+author: "G.G.M and P.N.H and R.S.R"
+date: "4/12/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE, echo=F}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+
+raw_data <- read.csv2("raw_data.csv", stringsAsFactors = T)
+
+format_perc <- function(x, k){
+  v <- trimws(format(round(x, k), nsmall=k))
+  paste0(v, "%")
+}
+
+```
+
+## Raw data
+
+The used raw data can be found in the file *raw_data.csv*.
+
+```{r descriptive}
+
+summary(raw_data)
+
+```
+
+## RQ1) What is the level of acceptance of Moodle by Ecuadorian higher education professors?
+
+```{r rq1, echo=FALSE, fig.width=8, fig.height=4}
+plot_data <- raw_data %>% 
+  select(c("bi1", "bi2", "bi3")) %>%
+  gather(key = "Item", value = "Score") %>%
+  mutate(Item = ifelse(Item == "bi1", "b1: I plan to continue \nusing Moodle.", ifelse(Item == "bi2", "b2: For my daily work, \nI would use Moodle.", "b3: I will continue \nto use Moodle frequently."))) %>% 
+  group_by(Item,Score) %>%
+  tally() %>% 
+  mutate(perc_raw=(n/sum(n)*100)) %>%
+    mutate(perc=format_perc(perc_raw,0))
+  
+
+p <- plot_data %>%
+  ggplot(aes(x=Score, y=n, fill=Item)) + 
+  geom_bar(stat = "identity", position="dodge2") + 
+  ylab("Count") + ggtitle("Behaviour Intention to Use") +
+  geom_text(aes(label=perc),size=2.5, vjust=-0.2, position = position_dodge(width = 0.9)) +
+  theme_classic() +
+  theme(plot.title = element_text(size = 12, face = "bold"),
+    legend.title=element_text(size=9), 
+    legend.text=element_text(size=7)) +
+  scale_fill_manual(values=c("#f3722c","#f9c74f","#277da1")) 
+
+ggsave(p, filename = "biu.pdf", width = 7, height = 2.5)
+
+p
+
+```
+## RQ2) What are the determinants of Moodle’s acceptance by Ecuadorian higher education professors?
+
+You can also embed plots, for example:
+
+```{r rq2}
+library(lavaan)
+
+model_sem <- '
+performance.expectancy =~  pe1 + pe2 + pe3
+effort.expectancy =~  ee1 + ee2 + ee3 + ee4
+social.influence =~  si1 + si2 + si3
+facilitating.conditions =~  fc1 + fc2 + fc3 + fc4
+hedonic.motivation =~  hm1 + hm2 + hm3
+habit =~  ht1 + ht2 + ht3
+learning.value =~  lv1 + lv2 + lv3
+technology.innovativeness =~  ti1 + ti2 + ti3
+attitude.strength =~  as1 + as2 + as3
+behavior.intention =~  bi1 + bi2 + bi3
+
+performance.expectancy ~ attitude.strength 
+effort.expectancy ~ attitude.strength
+social.influence ~ attitude.strength
+facilitating.conditions ~ attitude.strength
+hedonic.motivation ~ attitude.strength
+habit ~ attitude.strength
+learning.value ~ attitude.strength
+technology.innovativeness ~ attitude.strength
+
+behavior.intention ~ performance.expectancy + effort.expectancy + social.influence + facilitating.conditions + hedonic.motivation + habit + learning.value + technology.innovativeness
+
+'
+
+model_fit <- lavaan::sem(
+  model = model_sem,
+  data = raw_data,
+  estimator = "WLSMV", 
+  ordered = names(raw_data)
+)
+
+standardizedSolution(model_fit)
+
+fitMeasures(model_fit, 
+            fit.measures = c("chisq", 
+                   "df", 
+                   "pvalue", 
+                   "cfi", 
+                   "rmsea", 
+                   "rmsea.ci.lower",
+                   "rmsea.ci.upper"),
+            output = "matrix")
+
+```
+
+## RQ3) Is there any gender difference for the fitted model?
+
+
+
+```{r rq3}
+
+make_mutation <- function(x){
+  ifelse(x <3, 1, ifelse(x > 3, 3, 2))
+  
+}
+
+df_groups <- raw_data %>% mutate_at(c(17:48), make_mutation)
+
+model_fit_groups <- lavaan::sem(
+  model = model_sem,
+  data = df_groups,
+  estimator = "WLSMV", 
+  ordered = names(raw_data)
+)
+
+standardizedSolution(model_fit_groups)
+
+fitMeasures(model_fit_groups, 
+            fit.measures = c("chisq", 
+                   "df", 
+                   "pvalue", 
+                   "cfi", 
+                   "rmsea", 
+                   "rmsea.ci.lower",
+                   "rmsea.ci.upper"),
+            output = "matrix")
+
+# Female
+model_fit_groups_female <- lavaan::sem(
+  model = model_sem,
+  data = df_groups %>% filter(gender == "Female"),
+  estimator = "WLSMV", 
+  ordered = names(raw_data)
+)
+
+standardizedSolution(model_fit_groups_female)
+
+fitMeasures(model_fit_groups_female, 
+            fit.measures = c("chisq", 
+                   "df", 
+                   "pvalue", 
+                   "cfi", 
+                   "rmsea", 
+                   "rmsea.ci.lower",
+                   "rmsea.ci.upper",
+                   "srmr"),
+            output = "matrix")
+
+
+# Male
+model_fit_groups_male <- lavaan::sem(
+  model = model_sem,
+  data = df_groups %>% filter(gender == "Male"),
+  estimator = "WLSMV", 
+  ordered = names(raw_data),
+  group = "gender"
+)
+
+standardizedSolution(model_fit_groups_male)
+
+fitMeasures(model_fit_groups_male, 
+            fit.measures = c("chisq", 
+                   "df", 
+                   "pvalue", 
+                   "cfi", 
+                   "rmsea", 
+                   "rmsea.ci.lower",
+                   "rmsea.ci.upper",
+                   "srmr"),
+            output = "matrix")
+
+```
